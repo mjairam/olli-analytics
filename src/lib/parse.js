@@ -109,13 +109,15 @@ export function parseRawData(rawRows) {
     } else if (au === 'Onetime Lectures' || au === 'Multiweek Courses') {
       const lt = extractLT(r.sku);
       const wg = WEEK_GROUPS.find(g => g.match(getWeekGroup(lt)));
+      // If SKU is malformed and we can't determine type, fall back based on admin unit
+      const weekGroup = wg ? wg.key : (au === 'Onetime Lectures' ? '1day' : null);
       classRecs.push({
         profileId: r.ProfileId, firstName: r.FirstName||'', lastName: r.LastName||'',
         email: r.email||'', address1: r.address1||'', city: r.city||'',
         state: r.state||'', zip: r.zipcode||'', county: r.County||'',
         term: r.Term||'', buildingCity: normCampus(r.BuildingCity||''),
         title: r.Title||'', lectureType: lt,
-        weekGroup: wg ? wg.key : null, classId: r.ClassID,
+        weekGroup, classId: r.ClassID,
         netAmount: typeof r.NetAmount==='number' ? r.NetAmount : parseFloat(r.NetAmount)||0,
         enrollDate: excelDateToISO(r.EnrollmentDate),
       });
