@@ -77,12 +77,30 @@ export function termSortKey(term) {
   if (!m) return term;
   const season = m[1].toLowerCase();
   const yr = m[2];
-  const order = { 'summer a': 1, 'summer b': 2, 'fall': 3, 'spring': 4 };
+  // Chronological within calendar year: Spring(1) → Summer A(2) → Summer B(3) → Fall(4)
+  const order = { 'spring': 1, 'summer a': 2, 'summer b': 3, 'fall': 4 };
   return `${yr}-${order[season] ?? 9}`;
 }
 
 export function sortedTerms(terms) {
   return [...terms].sort((a, b) => termSortKey(a).localeCompare(termSortKey(b)));
+}
+
+/**
+ * Returns the fiscal year label for a term.
+ * FY starts at Summer B: Summer B(N), Fall(N), Spring(N+1), Summer A(N+1) → "FY NN/NN+1"
+ */
+export function getFiscalYear(term) {
+  if (!term) return null;
+  const m = term.match(/^(Spring|Fall|Summer [AB])\s+(\d{2})$/i);
+  if (!m) return null;
+  const season = m[1].toLowerCase();
+  const yr = parseInt(m[2], 10);
+  // Summer B and Fall belong to FY yr/(yr+1)
+  // Spring and Summer A belong to FY (yr-1)/yr
+  const fyStart = (season === 'summer b' || season === 'fall') ? yr : yr - 1;
+  const fyEnd = (fyStart + 1) % 100;
+  return `FY ${String(fyStart).padStart(2, '0')}/${String(fyEnd).padStart(2, '0')}`;
 }
 
 // ─── Main Parser ──────────────────────────────────────────────────────────────
@@ -124,6 +142,8 @@ export function parseRawData(rawRows) {
           ([r.InstructorLast, r.InstructorFirst].filter(Boolean).join(', ')) || '',
         netAmount: typeof r.NetAmount==='number' ? r.NetAmount : parseFloat(r.NetAmount)||0,
         enrollDate: excelDateToISO(r.EnrollmentDate),
+        startDate: excelDateToISO(r.ClassStart || r.StartDate || r.ClassStartDate || r.MeetingStart || ''),
+        endDate:   excelDateToISO(r.ClassEnd   || r.EndDate   || r.ClassEndDate   || r.MeetingEnd   || ''),
       });
     } else {
       // Row has an unrecognized AdminUnit — track it so we can warn the user
@@ -153,12 +173,14 @@ export function parseRawData(rawRows) {
   const memYears = [...memYearSet].sort().reverse();
 
   const totalDropped = Object.values(droppedByUnit).reduce((a, b) => a + b, 0);
+  const blankTermRows = classRecs.filter(r => !r.term).length;
   const diagnostics = {
     totalRows: rawRows.length,
     classRows: classRecs.length,
     memRows: memRecs.length,
     droppedRows: totalDropped,
-    droppedByUnit, // e.g. { 'Special Events': 42 }
+    droppedByUnit,
+    blankTermRows, // class records that have no Term and won't appear in any column
   };
 
   return { classRecs, memRecs, membershipMap, memSkus, classMap, terms, campuses, memYears, diagnostics };

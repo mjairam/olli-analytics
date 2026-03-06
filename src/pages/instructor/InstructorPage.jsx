@@ -53,11 +53,101 @@ function BarChart({ data, color = 'var(--accent-blue)' }) {
   );
 }
 
+// ─── Searchable Instructor Combobox ──────────────────────────────────────────
+
+function InstructorCombobox({ instructors, value, onChange }) {
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return instructors;
+    const q = query.toLowerCase();
+    return instructors.filter(i => i.toLowerCase().includes(q));
+  }, [instructors, query]);
+
+  const handleSelect = (inst) => {
+    onChange(inst);
+    setQuery(inst);
+    setOpen(false);
+  };
+
+  const handleChange = (e) => {
+    setQuery(e.target.value);
+    setOpen(true);
+    if (!e.target.value) onChange('');
+  };
+
+  const handleBlur = () => {
+    // Delay so click on option fires first
+    setTimeout(() => setOpen(false), 150);
+  };
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block', minWidth: 360 }}>
+      <input
+        type="text"
+        value={query}
+        onChange={handleChange}
+        onFocus={() => setOpen(true)}
+        onBlur={handleBlur}
+        placeholder="Type to search instructors…"
+        style={{
+          width: '100%',
+          padding: '9px 14px',
+          background: 'var(--surface-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          color: 'var(--text)',
+          fontSize: 14,
+          fontFamily: 'inherit',
+          boxSizing: 'border-box',
+        }}
+      />
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          background: 'var(--surface-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          marginTop: 4,
+          maxHeight: 260,
+          overflowY: 'auto',
+          zIndex: 100,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
+          {filtered.map(inst => (
+            <div
+              key={inst}
+              onMouseDown={() => handleSelect(inst)}
+              style={{
+                padding: '8px 14px',
+                cursor: 'pointer',
+                fontSize: 13,
+                color: inst === value ? 'var(--accent-blue)' : 'var(--text)',
+                background: inst === value ? 'rgba(74,158,255,0.1)' : 'transparent',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = inst === value ? 'rgba(74,158,255,0.1)' : 'transparent'; }}
+            >
+              {inst}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InstructorPage() {
   const { data } = useData();
   const [selected, setSelected] = useState('');
+
+  const handleSelect = (inst) => setSelected(inst);
 
   // All unique instructors
   const instructors = useMemo(() => {
@@ -111,34 +201,58 @@ export default function InstructorPage() {
           campus: r.buildingCity || '—',
           regs: 0,
           revenue: 0,
+          startDate: r.startDate || '',
+          endDate: r.endDate || '',
         };
       }
       classMap[key].regs++;
       classMap[key].revenue += r.netAmount || 0;
+      // Track earliest start and latest end across all enrollment rows for this section
+      if (r.startDate && (!classMap[key].startDate || r.startDate < classMap[key].startDate))
+        classMap[key].startDate = r.startDate;
+      if (r.endDate && (!classMap[key].endDate || r.endDate > classMap[key].endDate))
+        classMap[key].endDate = r.endDate;
     });
     const classes = Object.values(classMap).sort((a, b) => {
-      // Sort by term order then title
+      // Most recent term first, then title
       const ti = termOrder.indexOf(a.term);
       const tj = termOrder.indexOf(b.term);
-      if (ti !== tj) return ti - tj;
+      if (ti !== tj) return tj - ti;
       return a.title.localeCompare(b.title);
     });
 
     return { totalReg, totalRevenue, numCourses: uniqueClassIds.size, numTerms: uniqueTerms.size, byTerm, classes };
   }, [instructorRecs, data]);
 
+  const fmtDateRange = (startDate, endDate) => {
+    const fmt = (d) => {
+      if (!d) return null;
+      const [y, m, day] = d.split('-');
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${months[parseInt(m,10)-1]} ${parseInt(day,10)}, 20${y.slice(-2)}`;
+    };
+    const s = fmt(startDate), e = fmt(endDate);
+    if (s && e && s !== e) return `${s} – ${e}`;
+    return s || e || '—';
+  };
+
   const handleExport = () => {
     if (!stats) return;
-    const cols = [
-      { key: 'classId', label: 'Class ID' },
-      { key: 'title',   label: 'Course Title' },
-      { key: 'term',    label: 'Term' },
-      { key: 'campus',  label: 'Campus' },
-      { key: 'regs',    label: 'Registrations' },
-      { key: 'revenue', label: 'Revenue' },
+    const exportCols = [
+      { key: 'classId',   label: 'Class ID' },
+      { key: 'title',     label: 'Course Title' },
+      { key: 'term',      label: 'Term' },
+      { key: 'campus',    label: 'Campus' },
+      { key: 'dateRange', label: 'Date Range' },
+      { key: 'regs',      label: 'Registrations' },
+      { key: 'revenue',   label: 'Revenue' },
     ];
-    const rows = stats.classes.map(c => ({ ...c, revenue: c.revenue.toFixed(2) }));
-    downloadCSV(toCSV(rows, cols), `instructor_${selected.replace(/[^a-z0-9]/gi, '_')}.csv`);
+    const rows = stats.classes.map(c => ({
+      ...c,
+      dateRange: fmtDateRange(c.startDate, c.endDate),
+      revenue: c.revenue.toFixed(2),
+    }));
+    downloadCSV(toCSV(rows, exportCols), `instructor_${selected.replace(/[^a-z0-9]/gi, '_')}.csv`);
   };
 
   const classCols = [
@@ -146,7 +260,11 @@ export default function InstructorPage() {
     { key: 'title',   label: 'Course Title', headerStyle: { minWidth: 220 } },
     { key: 'term',    label: 'Term' },
     { key: 'campus',  label: 'Campus' },
-    { key: 'regs',    label: 'Registrations', align: 'right' },
+    {
+      key: 'dateRange', label: 'Dates',
+      render: (_, row) => fmtDateRange(row.startDate, row.endDate),
+    },
+    { key: 'regs', label: 'Registrations', align: 'right' },
     {
       key: 'revenue', label: 'Revenue', align: 'right',
       render: (v) => v != null ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
@@ -162,25 +280,11 @@ export default function InstructorPage() {
             <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
               Select Instructor
             </label>
-            <select
+            <InstructorCombobox
+              instructors={instructors}
               value={selected}
-              onChange={e => setSelected(e.target.value)}
-              style={{
-                padding: '9px 14px',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                color: selected ? 'var(--text)' : 'var(--text-muted)',
-                fontSize: 15,
-                minWidth: 320,
-                fontFamily: 'inherit',
-              }}
-            >
-              <option value="">— Choose an instructor —</option>
-              {instructors.map(inst => (
-                <option key={inst} value={inst}>{inst}</option>
-              ))}
-            </select>
+              onChange={handleSelect}
+            />
             {instructors.length === 0 && (
               <div style={{ marginTop: 8, fontSize: 12, color: 'var(--accent-yellow)' }}>
                 ⚠ No instructor names found in the loaded data. Check that your file includes an InstructorName column.

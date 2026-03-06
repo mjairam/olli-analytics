@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { PageShell, FilterBar, Select, DatePicker, ExportButton, SectionTitle, DataTable } from '../../components/ui';
-import { filterClassRecs, sortedTerms, toCSV, downloadCSV, fmtPct } from '../../lib/parse';
+import { filterClassRecs, getFiscalYear, toCSV, downloadCSV, fmtPct } from '../../lib/parse';
 
 // ─── Metric Definitions ───────────────────────────────────────────────────────
 
@@ -293,10 +293,12 @@ export default function SummaryPage() {
 
   const allTerms = data?.terms ?? [];
 
-  // Compute metrics per term
-  const termMetrics = useMemo(() => {
-    if (!data) return {};
-    const result = {};
+  // Compute per-term metrics AND fiscal year metrics in one pass
+  const { termMetrics, fyMetrics } = useMemo(() => {
+    if (!data) return { termMetrics: {}, fyMetrics: {} };
+    const termMetrics = {};
+    const fyRecsMap = {}; // FY key → combined filtered records
+
     allTerms.forEach(term => {
       const isCurrent = term === currentTerm;
       const recs = filterClassRecs(data.classRecs, {
@@ -304,61 +306,100 @@ export default function SummaryPage() {
         campus: campus === 'ALL' ? null : campus,
         cutoffDate: isCurrent && cutoffDate ? cutoffDate : null,
       }).filter(r => !r.title.toLowerCase().includes('explorer'));
-      result[term] = computeMetrics(recs, ssClassIds);
+      termMetrics[term] = computeMetrics(recs, ssClassIds);
+
+      const fy = getFiscalYear(term);
+      if (fy) {
+        if (!fyRecsMap[fy]) fyRecsMap[fy] = [];
+        fyRecsMap[fy].push(...recs);
+      }
     });
-    return result;
+
+    const fyMetrics = {};
+    Object.entries(fyRecsMap).forEach(([fy, recs]) => {
+      fyMetrics[fy] = computeMetrics(recs, ssClassIds);
+    });
+
+    return { termMetrics, fyMetrics };
   }, [data, allTerms, campus, currentTerm, cutoffDate, ssClassIds]);
 
-  // Build table rows
+  // Interleave FY columns after the last term of each fiscal year
+  const interleavedCols = useMemo(() => {
+    const result = [];
+    for (let i = 0; i < allTerms.length; i++) {
+      result.push({ type: 'term', key: allTerms[i] });
+      const thisFY = getFiscalYear(allTerms[i]);
+      const nextFY = i < allTerms.length - 1 ? getFiscalYear(allTerms[i + 1]) : null;
+      // Insert FY column when we're at the last term of a fiscal year
+      if (thisFY && nextFY !== thisFY && fyMetrics[thisFY]) {
+        result.push({ type: 'fy', key: thisFY });
+      }
+    }
+    return result;
+  }, [allTerms, fyMetrics]);
+
+  // Build table rows (includes both term and FY keys)
   const tableRows = useMemo(() => {
     return METRICS.map(m => {
       if (m.sep) return { _separator: true, _key: m.key };
       const row = { _key: m.key, metric: m.label, _bold: m.bold };
-      allTerms.forEach(term => {
-        row[term] = termMetrics[term]?.[m.key];
-      });
+      allTerms.forEach(term => { row[term] = termMetrics[term]?.[m.key]; });
+      Object.keys(fyMetrics).forEach(fy => { row[fy] = fyMetrics[fy]?.[m.key]; });
       return row;
     });
-  }, [allTerms, termMetrics]);
+  }, [allTerms, termMetrics, fyMetrics]);
 
-  // Build columns
+  // Build columns from interleaved list
   const cols = useMemo(() => {
-    const metricCol = {
-      key: 'metric',
-      label: 'Metric',
-      headerStyle: { minWidth: 260 },
-    };
-    const termCols = allTerms.map(term => ({
-      key: term,
-      label: term,
-      align: 'right',
-      headerStyle: {
-        background: term === currentTerm ? 'rgba(74,158,255,0.15)' : undefined,
-        color: term === currentTerm ? 'var(--accent-blue)' : undefined,
-      },
-      cellStyle: {
-        background: term === currentTerm ? 'rgba(74,158,255,0.05)' : undefined,
-        color: term === currentTerm ? 'var(--accent-blue)' : undefined,
-      },
-      render: (val, row) => {
-        const m = METRICS.find(x => x.label === row.metric);
-        if (!m || row._separator) return null;
-        return fmtVal(m, val);
-      },
-    }));
-    return [metricCol, ...termCols];
-  }, [allTerms, currentTerm]);
+    const metricCol = { key: 'metric', label: 'Metric', headerStyle: { minWidth: 260 } };
+    const dataCols = interleavedCols.map(item => {
+      if (item.type === 'fy') {
+        return {
+          key: item.key, label: item.key, align: 'right',
+          headerStyle: { background: 'rgba(63,185,80,0.18)', color: 'var(--accent-green)', fontWeight: 700, borderLeft: '2px solid rgba(63,185,80,0.4)' },
+          cellStyle:   { background: 'rgba(63,185,80,0.06)', color: 'var(--accent-green)', borderLeft: '2px solid rgba(63,185,80,0.2)', fontWeight: 600 },
+          render: (val, row) => {
+            const m = METRICS.find(x => x.label === row.metric);
+            if (!m || row._separator) return null;
+            return fmtVal(m, val);
+          },
+        };
+      }
+      const term = item.key;
+      return {
+        key: term, label: term, align: 'right',
+        headerStyle: {
+          background: term === currentTerm ? 'rgba(74,158,255,0.15)' : undefined,
+          color:      term === currentTerm ? 'var(--accent-blue)'    : undefined,
+        },
+        cellStyle: {
+          background: term === currentTerm ? 'rgba(74,158,255,0.05)' : undefined,
+          color:      term === currentTerm ? 'var(--accent-blue)'    : undefined,
+        },
+        render: (val, row) => {
+          const m = METRICS.find(x => x.label === row.metric);
+          if (!m || row._separator) return null;
+          return fmtVal(m, val);
+        },
+      };
+    });
+    return [metricCol, ...dataCols];
+  }, [interleavedCols, currentTerm]);
 
-  // CSV Export
+  // CSV Export — interleaved order
   const handleExport = () => {
     const csvRows = METRICS.filter(m => !m.sep).map(m => {
       const row = { Metric: m.label };
-      allTerms.forEach(term => {
-        row[term] = fmtVal(m, termMetrics[term]?.[m.key]);
+      interleavedCols.forEach(item => {
+        const metrics = item.type === 'fy' ? fyMetrics : termMetrics;
+        row[item.key] = fmtVal(m, metrics[item.key]?.[m.key]);
       });
       return row;
     });
-    const csvCols = [{ key: 'Metric', label: 'Metric' }, ...allTerms.map(t => ({ key: t, label: t }))];
+    const csvCols = [
+      { key: 'Metric', label: 'Metric' },
+      ...interleavedCols.map(item => ({ key: item.key, label: item.key })),
+    ];
     downloadCSV(toCSV(csvRows, csvCols), 'summary_export.csv');
   };
 

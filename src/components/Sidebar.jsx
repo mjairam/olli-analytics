@@ -102,6 +102,20 @@ export function Sidebar() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
               {data.classRecs.length.toLocaleString()} class rows · {data.memRecs.length.toLocaleString()} member rows
             </div>
+            {data.diagnostics?.blankTermRows > 0 && (
+              <div style={{
+                fontSize: 11,
+                color: 'var(--accent-yellow)',
+                background: 'rgba(230,180,50,0.1)',
+                border: '1px solid rgba(230,180,50,0.3)',
+                borderRadius: 5,
+                padding: '6px 8px',
+                marginBottom: 6,
+                lineHeight: 1.5,
+              }}>
+                ⚠ {data.diagnostics.blankTermRows.toLocaleString()} class rows have no Term and are excluded from all counts
+              </div>
+            )}
             {data.diagnostics?.droppedRows > 0 && (
               <div style={{
                 fontSize: 11,
