@@ -1,73 +1,71 @@
 import { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { PageShell, FilterBar, Select, DatePicker, ExportButton, SectionTitle, DataTable } from '../../components/ui';
-import { getMemberSet, filterClassRecs, WEEK_GROUPS, priorSemester, sortedTerms, toCSV, downloadCSV, fmtPct } from '../../lib/parse';
+import { filterClassRecs, sortedTerms, toCSV, downloadCSV, fmtPct } from '../../lib/parse';
 
 // ─── Metric Definitions ───────────────────────────────────────────────────────
 
 const METRICS = [
-  { key: 'totalReg',       label: 'Total Registration',         bold: true },
-  { key: 'num1day',        label: '# of 1-Day Lectures' },
-  { key: 'reg1day',        label: '1-Day Registrations' },
-  { key: 'totalRegIncExc', label: 'Total Reg (incl. Excursions)' },
-  { key: 'pct1dayOfTotal', label: '1-Day Reg % of Total',       pct: true },
-  { key: 'num4wk',         label: '# of 4-Week Courses' },
-  { key: 'reg4wk',         label: '4-Week Registrations' },
-  { key: 'num6wk',         label: '# of 6-Week Courses' },
-  { key: 'reg6wk',         label: '6-Week Registrations' },
-  { key: 'num7wk',         label: '# of 7-Week Courses' },
-  { key: 'reg7wk',         label: '7-Week Registrations' },
-  { key: 'num8wk',         label: '# of 8-Week Courses' },
-  { key: 'reg8wk',         label: '8-Week Registrations' },
-  { key: 'num9wk',         label: '# of 9-Week Courses' },
-  { key: 'reg9wk',         label: '9-Week Registrations' },
-  { key: 'numExcur',       label: '# of Excursions' },
-  { key: 'regExcur',       label: 'Excursion Registrations' },
-  { key: '_sep1',          sep: true },
-  { key: 'memberReg',      label: 'Member Registrations' },
-  { key: 'nonMemberReg',   label: 'Non-Member Registrations' },
-  { key: 'memberPct',      label: 'Member %',                   pct: true },
-  { key: '_sep2',          sep: true },
-  { key: 'numStudents',    label: '# of Students' },
-  { key: 'avgClasses',     label: 'Avg Classes/Student',        decimal: true },
+  { key: 'totalReg',             label: 'Total Registration',                bold: true },
+  { key: 'num1day',              label: '# of 1-Day Lectures' },
+  { key: 'reg1day',              label: '1-Day Registration' },
+  { key: 'totalRegExcSS',        label: 'Total Registration Excluding SS',   bold: true },
+  { key: 'pct1dayOfTotalExcSS',  label: '1 Day Reg % of Total (Exc SS)',     pct: true },
+  { key: 'numSS',                label: 'Number of Special Speakers' },
+  { key: 'regSS',                label: 'Special Speaker Registrations' },
+  { key: 'num4wk',               label: '# of 4-Week Courses' },
+  { key: 'reg4wk',               label: '4-Week Registrations' },
+  { key: 'num6wk',               label: '# of 6-Week Courses' },
+  { key: 'reg6wk',               label: '6-Week Registrations' },
+  { key: 'num7wk',               label: '# of 7-Week Courses' },
+  { key: 'reg7wk',               label: '7-Week Registrations' },
+  { key: 'num8wk',               label: '# of 8-Week Courses' },
+  { key: 'reg8wk',               label: '8-Week Registrations' },
+  { key: 'num9wk',               label: '# of 9-Week Courses' },
+  { key: 'reg9wk',               label: '9-Week Registrations' },
+  { key: '_sep1',                sep: true },
+  { key: 'numStudents',          label: '# of Students' },
+  { key: 'avgClasses',           label: 'Avg Classes/Student',               decimal: true },
 ];
 
 // ─── Compute metrics for a set of filtered class records ─────────────────────
 
-function computeMetrics(recs, memberSet) {
+function computeMetrics(recs, ssClassIds) {
   if (!recs || recs.length === 0) return {};
 
   const totalReg = recs.length;
+  const ssSet = ssClassIds || new Set();
 
   const byWG = (wgKey) => recs.filter(r => r.weekGroup === wgKey);
-  const classCount = (wgKey) => new Set(byWG(wgKey).map(r => r.classId).filter(Boolean)).size;
+  const classCount = (wgRecs) => new Set(wgRecs.map(r => r.classId).filter(Boolean)).size;
 
-  const reg1day = byWG('1day').length;
-  const regExcur = byWG('excur').length;
-  const totalRegIncExc = totalReg; // already includes excursions
+  const all1dayRecs = byWG('1day');
+  const ssRecs = recs.filter(r => ssSet.has(r.classId));
+  const reg1dayRecs = all1dayRecs.filter(r => !ssSet.has(r.classId));
 
-  const memberReg = memberSet ? recs.filter(r => memberSet.has(String(r.profileId))).length : 0;
-  const nonMemberReg = totalReg - memberReg;
+  const reg1day = reg1dayRecs.length;
+  const regSS = ssRecs.length;
+  const numSS = classCount(ssRecs);
+  const num1day = classCount(reg1dayRecs);
+  const totalRegExcSS = totalReg - regSS;
 
   const profileIds = recs.map(r => r.profileId).filter(Boolean);
-  const uniqueStudents = new Set(profileIds);
-  const numStudents = uniqueStudents.size;
+  const numStudents = new Set(profileIds).size;
   const avgClasses = numStudents > 0 ? totalReg / numStudents : 0;
 
   return {
     totalReg,
-    num1day: classCount('1day'),
+    num1day,
     reg1day,
-    totalRegIncExc,
-    pct1dayOfTotal: totalReg > 0 ? reg1day / totalReg : 0,
-    num4wk: classCount('4wk'), reg4wk: byWG('4wk').length,
-    num6wk: classCount('6wk'), reg6wk: byWG('6wk').length,
-    num7wk: classCount('7wk'), reg7wk: byWG('7wk').length,
-    num8wk: classCount('8wk'), reg8wk: byWG('8wk').length,
-    num9wk: classCount('9wk'), reg9wk: byWG('9wk').length,
-    numExcur: classCount('excur'), regExcur,
-    memberReg, nonMemberReg,
-    memberPct: totalReg > 0 ? memberReg / totalReg : 0,
+    totalRegExcSS,
+    pct1dayOfTotalExcSS: totalRegExcSS > 0 ? reg1day / totalRegExcSS : 0,
+    numSS,
+    regSS,
+    num4wk: classCount(byWG('4wk')), reg4wk: byWG('4wk').length,
+    num6wk: classCount(byWG('6wk')), reg6wk: byWG('6wk').length,
+    num7wk: classCount(byWG('7wk')), reg7wk: byWG('7wk').length,
+    num8wk: classCount(byWG('8wk')), reg8wk: byWG('8wk').length,
+    num9wk: classCount(byWG('9wk')), reg9wk: byWG('9wk').length,
     numStudents,
     avgClasses,
   };
@@ -82,6 +80,144 @@ function fmtVal(m, val) {
   return Number.isInteger(val) ? val.toLocaleString() : Number(val).toFixed(2);
 }
 
+// ─── Special Speaker Selector Panel ──────────────────────────────────────────
+
+function SpecialSpeakerPanel({ courses, selectedIds, onToggle, onClear }) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return courses;
+    const q = search.toLowerCase();
+    return courses.filter(c =>
+      c.title.toLowerCase().includes(q) ||
+      c.term.toLowerCase().includes(q) ||
+      String(c.classId).toLowerCase().includes(q)
+    );
+  }, [courses, search]);
+
+  const selectedCount = selectedIds.size;
+
+  return (
+    <div style={{ marginBottom: 16, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 16px',
+          background: 'var(--surface-2)',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--text)',
+          fontSize: 13,
+          fontWeight: 600,
+        }}
+      >
+        <span>
+          Special Speaker Courses
+          {selectedCount > 0 && (
+            <span style={{
+              marginLeft: 8,
+              background: 'var(--accent-blue)',
+              color: '#fff',
+              borderRadius: 10,
+              padding: '1px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+            }}>
+              {selectedCount} selected
+            </span>
+          )}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{open ? '▲ collapse' : '▼ expand'}</span>
+      </button>
+
+      {open && (
+        <div style={{ padding: 14, background: 'var(--surface)' }}>
+          <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--text-muted)' }}>
+            Select which 1-day courses are Special Speaker events. They will be broken out separately and excluded from the 1-Day Registration count.
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Search by title, term, or course ID…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '6px 10px',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                color: 'var(--text)',
+                fontSize: 13,
+              }}
+            />
+            {selectedCount > 0 && (
+              <button
+                onClick={onClear}
+                style={{
+                  padding: '6px 12px',
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+
+          {courses.length === 0 ? (
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>
+              No 1-day courses found in loaded data.
+            </div>
+          ) : (
+            <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {filtered.map(c => (
+                <label
+                  key={c.classId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '5px 8px',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    background: selectedIds.has(c.classId) ? 'rgba(74,158,255,0.1)' : 'transparent',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(c.classId)}
+                    onChange={() => onToggle(c.classId)}
+                    style={{ accentColor: 'var(--accent-blue)', width: 14, height: 14, flexShrink: 0 }}
+                  />
+                  <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{c.title}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{c.term}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+                    #{c.classId}
+                  </span>
+                </label>
+              ))}
+              {filtered.length === 0 && (
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>No matches.</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SummaryPage() {
@@ -90,7 +226,7 @@ export default function SummaryPage() {
   const [campus, setCampus] = useState('ALL');
   const [currentTerm, setCurrentTerm] = useState('');
   const [cutoffDate, setCutoffDate] = useState('');
-  const [memYear, setMemYear] = useState('');
+  const [ssClassIds, setSsClassIds] = useState(new Set());
 
   const campusOptions = useMemo(() => {
     if (!data) return [{ value: 'ALL', label: 'All Campuses' }];
@@ -105,22 +241,36 @@ export default function SummaryPage() {
     return data.terms.map(t => ({ value: t, label: t }));
   }, [data]);
 
-  const memYearOptions = useMemo(() => {
-    if (!data) return [{ value: '', label: 'None' }];
-    return [
-      { value: '', label: 'None (no membership filter)' },
-      ...data.memYears.map(y => ({ value: y, label: y })),
-    ];
+  // All unique 1-day courses for the SS selector
+  const oneDayCourses = useMemo(() => {
+    if (!data) return [];
+    const seen = new Set();
+    const result = [];
+    data.classRecs
+      .filter(r => r.weekGroup === '1day' && r.classId)
+      .forEach(r => {
+        if (!seen.has(r.classId)) {
+          seen.add(r.classId);
+          result.push({ classId: r.classId, title: r.title || '(no title)', term: r.term || '' });
+        }
+      });
+    // Sort by term then title
+    result.sort((a, b) => a.term.localeCompare(b.term) || a.title.localeCompare(b.title));
+    return result;
   }, [data]);
 
-  // All unique terms for column headers
-  const allTerms = data?.terms ?? [];
+  const handleToggleSS = (classId) => {
+    setSsClassIds(prev => {
+      const next = new Set(prev);
+      if (next.has(classId)) next.delete(classId);
+      else next.add(classId);
+      return next;
+    });
+  };
 
-  // Member set for membership-based filtering
-  const memberSet = useMemo(() => {
-    if (!data || !memYear) return null;
-    return getMemberSet(data.memRecs, memYear, campus === 'ALL' ? null : campus);
-  }, [data, memYear, campus]);
+  const handleClearSS = () => setSsClassIds(new Set());
+
+  const allTerms = data?.terms ?? [];
 
   // Compute metrics per term
   const termMetrics = useMemo(() => {
@@ -133,10 +283,10 @@ export default function SummaryPage() {
         campus: campus === 'ALL' ? null : campus,
         cutoffDate: isCurrent && cutoffDate ? cutoffDate : null,
       });
-      result[term] = computeMetrics(recs, memberSet);
+      result[term] = computeMetrics(recs, ssClassIds);
     });
     return result;
-  }, [data, allTerms, campus, currentTerm, cutoffDate, memberSet]);
+  }, [data, allTerms, campus, currentTerm, cutoffDate, ssClassIds]);
 
   // Build table rows
   const tableRows = useMemo(() => {
@@ -148,14 +298,14 @@ export default function SummaryPage() {
       });
       return row;
     });
-  }, [METRICS, allTerms, termMetrics]);
+  }, [allTerms, termMetrics]);
 
   // Build columns
   const cols = useMemo(() => {
     const metricCol = {
       key: 'metric',
       label: 'Metric',
-      headerStyle: { minWidth: 220 },
+      headerStyle: { minWidth: 260 },
     };
     const termCols = allTerms.map(term => ({
       key: term,
@@ -213,16 +363,17 @@ export default function SummaryPage() {
               value={cutoffDate}
               onChange={setCutoffDate}
             />
-            <Select
-              label="Membership Year"
-              value={memYear}
-              onChange={setMemYear}
-              options={memYearOptions}
-            />
             <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>
               <ExportButton onClick={handleExport} />
             </div>
           </FilterBar>
+
+          <SpecialSpeakerPanel
+            courses={oneDayCourses}
+            selectedIds={ssClassIds}
+            onToggle={handleToggleSS}
+            onClear={handleClearSS}
+          />
 
           {allTerms.length === 0 ? (
             <div style={{ color: 'var(--text-muted)', padding: 20 }}>No class records found in file.</div>
@@ -233,7 +384,9 @@ export default function SummaryPage() {
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
                   Current term: <span style={{ color: 'var(--accent-blue)' }}>{currentTerm}</span>
                   {cutoffDate && <> · Cutoff: <span style={{ color: 'var(--accent-yellow)' }}>{cutoffDate}</span></>}
-                  {memYear && <> · Membership year: <span style={{ color: 'var(--accent-purple)' }}>{memYear}</span></>}
+                  {ssClassIds.size > 0 && (
+                    <> · Special speakers: <span style={{ color: 'var(--accent-blue)' }}>{ssClassIds.size} course{ssClassIds.size !== 1 ? 's' : ''}</span></>
+                  )}
                 </div>
               )}
               <DataTable
