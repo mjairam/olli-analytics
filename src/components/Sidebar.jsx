@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 
 const NAV_ITEMS = [
@@ -8,11 +8,11 @@ const NAV_ITEMS = [
   { path: '/member-list',    icon: '👥', label: 'Member List' },
   { path: '/reg-list',       icon: '📝', label: 'Registrations' },
   { path: '/class-analysis', icon: '🔍', label: 'Class Analysis' },
-  { path: '/catalog-cleaner',icon: '✂️',  label: 'Catalog Cleaner' },
 ];
 
 export function Sidebar() {
   const { data, fileName, clearData, loadFile, loading } = useData();
+  const navigate = useNavigate();
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -32,17 +32,49 @@ export function Sidebar() {
       position: 'sticky',
       top: 0,
     }}>
-      {/* Logo */}
+      {/* Logo + Home button */}
       <div style={{
-        padding: '20px 20px 16px',
+        padding: '16px 20px',
         borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
       }}>
-        <div className="serif" style={{ fontSize: 15, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-          OLLI at FAU
+        <div>
+          <div className="serif" style={{ fontSize: 15, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+            OLLI at FAU
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+            Analytics Dashboard
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-          Analytics Dashboard
-        </div>
+        <button
+          onClick={() => navigate('/')}
+          title="Back to home"
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            borderRadius: 7,
+            color: 'var(--text-muted)',
+            padding: '5px 9px',
+            fontSize: 11,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            flexShrink: 0,
+            transition: 'color 0.1s, border-color 0.1s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = 'var(--text-primary)';
+            e.currentTarget.style.borderColor = 'var(--text-muted)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = 'var(--text-muted)';
+            e.currentTarget.style.borderColor = 'var(--border)';
+          }}
+        >
+          ⌂ Home
+        </button>
       </div>
 
       {/* Data status */}
@@ -132,9 +164,7 @@ export function Sidebar() {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
               }
             }}
-            onMouseLeave={e => {
-              // NavLink handles active state via style prop
-            }}
+            onMouseLeave={e => {}}
           >
             <span style={{ fontSize: 16, lineHeight: 1 }}>{item.icon}</span>
             <span>{item.label}</span>
