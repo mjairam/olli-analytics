@@ -110,8 +110,9 @@ export function parseRawData(rawRows) {
     } else if (au === 'Onetime Lectures' || au === 'Multiweek Courses') {
       const lt = extractLT(r.sku);
       const wg = WEEK_GROUPS.find(g => g.match(getWeekGroup(lt)));
-      // If SKU is malformed and we can't determine type, fall back based on admin unit
-      const weekGroup = wg ? wg.key : (au === 'Onetime Lectures' ? '1day' : null);
+      const rawGroup = wg ? wg.key : 'other';
+      // Onetime Lectures with an unreadable SKU are still 1-day events
+      const weekGroup = (rawGroup === 'other' && au === 'Onetime Lectures') ? '1day' : rawGroup;
       classRecs.push({
         profileId: r.ProfileId, firstName: r.FirstName||'', lastName: r.LastName||'',
         email: r.email||'', address1: r.address1||'', city: r.city||'',
@@ -119,6 +120,8 @@ export function parseRawData(rawRows) {
         term: r.Term||'', buildingCity: normCampus(r.BuildingCity||''),
         title: r.Title||'', lectureType: lt,
         weekGroup, classId: r.ClassID,
+        instructor: r.InstructorName || r.Instructor ||
+          ([r.InstructorLast, r.InstructorFirst].filter(Boolean).join(', ')) || '',
         netAmount: typeof r.NetAmount==='number' ? r.NetAmount : parseFloat(r.NetAmount)||0,
         enrollDate: excelDateToISO(r.EnrollmentDate),
       });

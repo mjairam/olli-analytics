@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { path: '/member-list',    icon: '👥', label: 'Member List' },
   { path: '/reg-list',       icon: '📝', label: 'Registrations' },
   { path: '/class-analysis', icon: '🔍', label: 'Class Analysis' },
+  { path: '/instructor',    icon: '👤', label: 'Instructor Report' },
 ];
 
 export function Sidebar() {

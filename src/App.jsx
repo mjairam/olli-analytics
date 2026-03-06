@@ -8,6 +8,7 @@ import MemberVsNonPage from './pages/memberVsNon/MemberVsNonPage';
 import MemberListPage from './pages/memberList/MemberListPage';
 import RegListPage from './pages/regList/RegListPage';
 import ClassAnalysisPage from './pages/classAnalysis/ClassAnalysisPage';
+import InstructorPage from './pages/instructor/InstructorPage';
 import CatalogCleanerPage from './pages/catalogCleaner/CatalogCleanerPage';
 import MailingListPage from './pages/mailingList/MailingListPage';
 
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/member-list" element={<MemberListPage />} />
             <Route path="/reg-list" element={<RegListPage />} />
             <Route path="/class-analysis" element={<ClassAnalysisPage />} />
+            <Route path="/instructor" element={<InstructorPage />} />
           </Route>
 
           {/* Standalone sections */}
