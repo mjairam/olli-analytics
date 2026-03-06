@@ -303,7 +303,7 @@ export default function SummaryPage() {
         term,
         campus: campus === 'ALL' ? null : campus,
         cutoffDate: isCurrent && cutoffDate ? cutoffDate : null,
-      });
+      }).filter(r => !r.title.toLowerCase().includes('explorer'));
       result[term] = computeMetrics(recs, ssClassIds);
     });
     return result;
