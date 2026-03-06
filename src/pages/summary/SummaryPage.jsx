@@ -82,19 +82,37 @@ function fmtVal(m, val) {
 
 // ─── Special Speaker Selector Panel ──────────────────────────────────────────
 
-function SpecialSpeakerPanel({ courses, selectedIds, onToggle, onClear }) {
+const inlineSelectStyle = {
+  padding: '5px 8px',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  color: 'var(--text)',
+  fontSize: 12,
+};
+
+function SpecialSpeakerPanel({ courses, terms, campuses, selectedIds, onToggle, onClear }) {
   const [search, setSearch] = useState('');
+  const [filterTerm, setFilterTerm] = useState('');
+  const [filterCampus, setFilterCampus] = useState('');
   const [open, setOpen] = useState(false);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return courses;
-    const q = search.toLowerCase();
-    return courses.filter(c =>
-      c.title.toLowerCase().includes(q) ||
-      c.term.toLowerCase().includes(q) ||
-      String(c.classId).toLowerCase().includes(q)
-    );
-  }, [courses, search]);
+    return courses.filter(c => {
+      if (filterTerm && c.term !== filterTerm) return false;
+      if (filterCampus && c.campus !== filterCampus) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        if (
+          !c.title.toLowerCase().includes(q) &&
+          !c.term.toLowerCase().includes(q) &&
+          !c.campus.toLowerCase().includes(q) &&
+          !String(c.classId).toLowerCase().includes(q)
+        ) return false;
+      }
+      return true;
+    });
+  }, [courses, search, filterTerm, filterCampus]);
 
   const selectedCount = selectedIds.size;
 
@@ -140,27 +158,29 @@ function SpecialSpeakerPanel({ courses, selectedIds, onToggle, onClear }) {
           <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--text-muted)' }}>
             Select which 1-day courses are Special Speaker events. They will be broken out separately and excluded from the 1-Day Registration count.
           </div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+
+          {/* Filters row */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select value={filterTerm} onChange={e => setFilterTerm(e.target.value)} style={inlineSelectStyle}>
+              <option value="">All Terms</option>
+              {terms.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select value={filterCampus} onChange={e => setFilterCampus(e.target.value)} style={inlineSelectStyle}>
+              <option value="">All Campuses</option>
+              {campuses.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
             <input
               type="text"
-              placeholder="Search by title, term, or course ID…"
+              placeholder="Search title or course ID…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{
-                flex: 1,
-                padding: '6px 10px',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                color: 'var(--text)',
-                fontSize: 13,
-              }}
+              style={{ ...inlineSelectStyle, flex: 1, minWidth: 180 }}
             />
             {selectedCount > 0 && (
               <button
                 onClick={onClear}
                 style={{
-                  padding: '6px 12px',
+                  padding: '5px 12px',
                   background: 'transparent',
                   border: '1px solid var(--border)',
                   borderRadius: 6,
@@ -180,7 +200,7 @@ function SpecialSpeakerPanel({ courses, selectedIds, onToggle, onClear }) {
               No 1-day courses found in loaded data.
             </div>
           ) : (
-            <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
               {filtered.map(c => (
                 <label
                   key={c.classId}
@@ -201,6 +221,7 @@ function SpecialSpeakerPanel({ courses, selectedIds, onToggle, onClear }) {
                     style={{ accentColor: 'var(--accent-blue)', width: 14, height: 14, flexShrink: 0 }}
                   />
                   <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{c.title}</span>
+                  <span style={{ fontSize: 11, color: 'var(--accent-blue)', whiteSpace: 'nowrap', fontWeight: 500 }}>{c.campus}</span>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{c.term}</span>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
                     #{c.classId}
@@ -251,7 +272,7 @@ export default function SummaryPage() {
       .forEach(r => {
         if (!seen.has(r.classId)) {
           seen.add(r.classId);
-          result.push({ classId: r.classId, title: r.title || '(no title)', term: r.term || '' });
+          result.push({ classId: r.classId, title: r.title || '(no title)', term: r.term || '', campus: r.buildingCity || '' });
         }
       });
     // Sort by term then title
@@ -370,6 +391,8 @@ export default function SummaryPage() {
 
           <SpecialSpeakerPanel
             courses={oneDayCourses}
+            terms={allTerms}
+            campuses={data.campuses}
             selectedIds={ssClassIds}
             onToggle={handleToggleSS}
             onClear={handleClearSS}
