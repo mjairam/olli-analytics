@@ -94,10 +94,32 @@ export function Sidebar() {
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              marginBottom: 8,
+              marginBottom: 4,
             }} title={fileName}>
               {fileName}
             </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+              {data.classRecs.length.toLocaleString()} class rows · {data.memRecs.length.toLocaleString()} member rows
+            </div>
+            {data.diagnostics?.droppedRows > 0 && (
+              <div style={{
+                fontSize: 11,
+                color: 'var(--accent-yellow)',
+                background: 'rgba(230,180,50,0.1)',
+                border: '1px solid rgba(230,180,50,0.3)',
+                borderRadius: 5,
+                padding: '6px 8px',
+                marginBottom: 8,
+                lineHeight: 1.5,
+              }}>
+                ⚠ {data.diagnostics.droppedRows.toLocaleString()} rows skipped
+                <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>
+                  {Object.entries(data.diagnostics.droppedByUnit).map(([unit, count]) => (
+                    <div key={unit}>"{unit}": {count.toLocaleString()}</div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <label style={{
                 fontSize: 11,

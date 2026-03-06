@@ -89,6 +89,7 @@ export function sortedTerms(terms) {
 
 export function parseRawData(rawRows) {
   const classRecs = [], memRecs = [], membershipMap = {};
+  const droppedByUnit = {}; // tracks unrecognized AdminUnit values
 
   rawRows.forEach(r => {
     const au = r.AdminUnit || '';
@@ -121,6 +122,10 @@ export function parseRawData(rawRows) {
         netAmount: typeof r.NetAmount==='number' ? r.NetAmount : parseFloat(r.NetAmount)||0,
         enrollDate: excelDateToISO(r.EnrollmentDate),
       });
+    } else {
+      // Row has an unrecognized AdminUnit — track it so we can warn the user
+      const key = au || '(blank)';
+      droppedByUnit[key] = (droppedByUnit[key] || 0) + 1;
     }
   });
 
@@ -144,7 +149,16 @@ export function parseRawData(rawRows) {
   const memYearSet = new Set(memRecs.map(r => r.year).filter(Boolean));
   const memYears = [...memYearSet].sort().reverse();
 
-  return { classRecs, memRecs, membershipMap, memSkus, classMap, terms, campuses, memYears };
+  const totalDropped = Object.values(droppedByUnit).reduce((a, b) => a + b, 0);
+  const diagnostics = {
+    totalRows: rawRows.length,
+    classRows: classRecs.length,
+    memRows: memRecs.length,
+    droppedRows: totalDropped,
+    droppedByUnit, // e.g. { 'Special Events': 42 }
+  };
+
+  return { classRecs, memRecs, membershipMap, memSkus, classMap, terms, campuses, memYears, diagnostics };
 }
 
 // ─── Membership Helpers ───────────────────────────────────────────────────────
