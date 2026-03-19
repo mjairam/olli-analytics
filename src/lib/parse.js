@@ -191,12 +191,14 @@ export function parseRawData(rawRows) {
 /**
  * Get deduplicated member profileIds for a given year+campus filter.
  * Dedup: if a profileId appears multiple times, keep earliest enrollDate.
+ * Optional cutoffDate excludes members who enrolled after that date.
  */
-export function getMemberSet(memRecs, year, campus) {
+export function getMemberSet(memRecs, year, campus, cutoffDate = null) {
   const byProfile = {};
   memRecs.forEach(r => {
     if (year && year !== 'ALL' && r.year !== year) return;
     if (campus && campus !== 'ALL' && r.campus !== campus) return;
+    if (cutoffDate && r.enrollDate > cutoffDate) return;
     if (!byProfile[r.profileId] || r.enrollDate < byProfile[r.profileId]) {
       byProfile[r.profileId] = r.enrollDate;
     }
@@ -245,6 +247,61 @@ export function downloadCSV(content, filename) {
 export function fmtPct(n) {
   if (n == null || isNaN(n)) return '—';
   return (n * 100).toFixed(1) + '%';
+}
+
+// ─── Summary Consolidation Helpers ───────────────────────────────────────────
+
+/**
+ * Consolidates "Summer A YY" and "Summer B YY" into "Summer YY".
+ * All other terms are returned unchanged.
+ */
+export function consolidateTerm(term) {
+  if (!term) return term;
+  const m = term.match(/^Summer [AB]\s+(\d{2})$/i);
+  return m ? `Summer ${m[1]}` : term;
+}
+
+/**
+ * Fiscal year for consolidated summary terms (no A/B suffix).
+ * "Summer YY" and "Fall YY" → FY YY/(YY+1)
+ * "Spring YY" → FY (YY-1)/YY
+ * Falls back to getFiscalYear() for original A/B terms.
+ */
+export function getFiscalYearSummary(term) {
+  if (!term) return null;
+  const orig = getFiscalYear(term);
+  if (orig) return orig;
+  const m = term.match(/^(Spring|Fall|Summer)\s+(\d{2})$/i);
+  if (!m) return null;
+  const season = m[1].toLowerCase();
+  const yr = parseInt(m[2], 10);
+  const fyStart = (season === 'summer' || season === 'fall') ? yr : yr - 1;
+  const fyEnd = (fyStart + 1) % 100;
+  return `FY ${String(fyStart).padStart(2, '0')}/${String(fyEnd).padStart(2, '0')}`;
+}
+
+/**
+ * Sort key for consolidated summary terms.
+ * Within each FY: Summer(1) → Fall(2) → Spring(3)
+ */
+export function termSortKeySummary(term) {
+  if (!term) return '';
+  const m = term.match(/^(Spring|Fall|Summer)\s+(\d{2})$/i);
+  if (!m) return term;
+  const season = m[1].toLowerCase();
+  const yr = parseInt(m[2], 10);
+  const fyStart = (season === 'summer' || season === 'fall') ? yr : yr - 1;
+  const pos = season === 'summer' ? 1 : season === 'fall' ? 2 : 3;
+  return `${String(fyStart).padStart(2, '0')}-${pos}`;
+}
+
+/**
+ * Returns the same calendar date one year prior (YYYY-MM-DD format).
+ */
+export function priorYearDate(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-');
+  return `${parseInt(y) - 1}-${m}-${d}`;
 }
 
 export function fmtChange(curr, prior) {
