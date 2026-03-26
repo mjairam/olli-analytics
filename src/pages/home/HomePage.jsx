@@ -31,6 +31,16 @@ const SECTIONS = [
     colorBorder: 'rgba(63,185,80,0.25)',
     tags: ['Registrations', 'Custom Fields', 'Seasonal Routing', 'Export'],
   },
+  {
+    path: '/reconciliation',
+    icon: '💳',
+    title: 'Daily Reconciliation Tool',
+    description: 'Upload your refreshable transactions export, pick a date, and instantly see that day\'s revenue, refunds, and net total — then export a clean summary.',
+    color: 'var(--accent-yellow)',
+    colorBg: 'rgba(227,179,65,0.08)',
+    colorBorder: 'rgba(227,179,65,0.25)',
+    tags: ['Transactions', 'Revenue', 'Refunds', 'Export'],
+  },
 ];
 
 export default function HomePage() {

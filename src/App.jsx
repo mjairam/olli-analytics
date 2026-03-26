@@ -11,6 +11,7 @@ import ClassAnalysisPage from './pages/classAnalysis/ClassAnalysisPage';
 import InstructorPage from './pages/instructor/InstructorPage';
 import CatalogCleanerPage from './pages/catalogCleaner/CatalogCleanerPage';
 import MailingListPage from './pages/mailingList/MailingListPage';
+import ReconciliationPage from './pages/reconciliation/ReconciliationPage';
 
 function AnalyticsLayout() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
           {/* Standalone sections */}
           <Route path="/catalog-cleaner" element={<CatalogCleanerPage />} />
           <Route path="/mailing-list" element={<MailingListPage />} />
+          <Route path="/reconciliation" element={<ReconciliationPage />} />
         </Routes>
       </DataProvider>
     </BrowserRouter>
