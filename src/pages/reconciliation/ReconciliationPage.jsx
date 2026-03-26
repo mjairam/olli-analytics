@@ -332,13 +332,13 @@ export default function ReconciliationPage() {
           });
         }
       } else if (status === 'Refunded') {
-        const d = parseDateCell(row.ModifiedDate);
+        const d = parseDateCell(row.PaidDate);
         if (d === selectedDate) {
           refunds.push({
             ...row,
             Amount: amount,
             _name: `${row.FirstName || ''} ${row.LastName || ''}`.trim(),
-            _date: formatDateTime(row.ModifiedDate),
+            _date: formatDateTime(row.PaidDate),
           });
         }
       }
